@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5ca601a6-2bcd-4a00-a116-9b973f591861" name="Changes" comment="working">
+    <list default="true" id="5ca601a6-2bcd-4a00-a116-9b973f591861" name="Changes" comment="working before suppressing dmx_data_in">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Lines.py" beforeDir="false" afterPath="$PROJECT_DIR$/Lines.py" afterDir="false" />
     </list>
@@ -49,7 +49,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "master",
-    "settings.editor.selected.configurable": "proofread"
+    "settings.editor.selected.configurable": "preferences.lookFeel"
   }
 }]]></component>
   <component name="SharedIndexes">
@@ -116,7 +116,15 @@
       <option name="project" value="LOCAL" />
       <updated>1737365315133</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="working before suppressing dmx_data_in">
+      <option name="closed" value="true" />
+      <created>1737368040212</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1737368040212</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -135,6 +143,7 @@
     <MESSAGE value="clean" />
     <MESSAGE value="deploying" />
     <MESSAGE value="working" />
-    <option name="LAST_COMMIT_MESSAGE" value="working" />
+    <MESSAGE value="working before suppressing dmx_data_in" />
+    <option name="LAST_COMMIT_MESSAGE" value="working before suppressing dmx_data_in" />
   </component>
 </project>

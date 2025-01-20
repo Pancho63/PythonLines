@@ -7,22 +7,7 @@ logging.basicConfig(
     level=logging.DEBUG,  # Set logging level to debug
     format='%(asctime)s - %(levelname)s - %(message)s',)  # Include timestamp for clarity
 
-#int_arg = 0
-#int_arg2 = 0
-#string_arg = ""
-master = [0, 0, 0, 0, 0]
-X1 = [0, 0, 0, 0, 0]
-X2 = [0, 0, 0, 0, 0]
-Y1 = [0, 0, 0, 0, 0]
-Y2 = [0, 0, 0, 0, 0]
-R = [0, 0, 0, 0, 0]
-rouge = [0, 0, 0, 0]
-vert = [0, 0, 0, 0]
-bleu = [0, 0, 0, 0]
-thick = [0, 0, 0, 0]
-base_channel = {0, 15, 30, 45, 60}
-dmx_data = [0] * 76
-
+gobo = 0
 app = QApplication([])
 view = QGraphicsView()
 scene = QGraphicsScene()
@@ -75,51 +60,51 @@ class SACNReceiverThread(QThread):
             self.dmx_data_received.emit(list(packet.dmxData))  # Ensure data is a list
 
 receiver_thread = SACNReceiverThread()
-receiver_thread.dmx_data_received.connect(lambda data: on_levels_changed(data))
+receiver_thread.dmx_data_received.connect(lambda data: line_update(data))
 receiver_thread.start()
 
 
-def line_update():
-     global scene, X1, Y1, X2, Y2, rouge, vert, bleu, master, thick, R, view, pix, ellipse1, ellipse2, rect1, rect2
+def valeur16b(value, data):
+     return (data[value] << 8) | data[value+ 1]
 
-     rect1.setRect(QRectF((X1[0] * view.width() / 65535), (Y1[0] * view.height() / 65535), (X2[0] * view.width() / 65535), (Y2[0] * view.height() / 65535)))
-     rect1.setPen(PyQt5.QtGui.QPen(PyQt5.QtGui.QColor(rouge[0], vert[0], bleu[0], master[0]), thick[0], Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+
+def line_update(data):
+     global scene, view, pix, ellipse1, ellipse2, rect1, rect2, gobo
+
+     rect1.setRect(QRectF((valeur16b(7, data) * view.width() / 65535), (valeur16b(9, data) * view.height() / 65535), (valeur16b(11, data) * view.width() / 65535), (valeur16b(13, data) * view.height() / 65535)))
+     rect1.setPen(PyQt5.QtGui.QPen(PyQt5.QtGui.QColor(data[1], data[2], data[3], data[0]), data[4], Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
      rect1.setTransformOriginPoint(rect1.boundingRect().center())
-     rect1.setRotation(360*R[0]/65535)
+     rect1.setRotation(360*(valeur16b(5, data))/65535)
 
-     rect2.setRect(QRectF(((view.width() - X1[1] * view.width() / 65535) - X2[1] * view.width() / 65535),((view.height() - Y1[1] * view.height() / 65535) - Y2[1] * view.height() / 65535), (X2[1] * view.width() / 65535), (Y2[1] * view.height() / 65535)))
-     rect2.setPen(PyQt5.QtGui.QPen(PyQt5.QtGui.QColor(rouge[1], vert[1], bleu[1], master[1]), thick[1], Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+     rect2.setRect(QRectF((valeur16b(22, data) * view.width() / 65535), ((view.height() - (valeur16b(24, data)) * view.height() / 65535) - (valeur16b(28, data)) * view.height() / 65535), ((valeur16b(26, data)) * view.width() / 65535), ((valeur16b(28, data)) * view.height() / 65535)))
+     rect2.setPen(PyQt5.QtGui.QPen(PyQt5.QtGui.QColor(data[16], data[17], data[18], data[15]), data[19], Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
      rect2.setTransformOriginPoint(rect2.boundingRect().center())
-     rect2.setRotation(360*R[1]/65535)
+     rect2.setRotation(360*(valeur16b(20, data))/65535)
 
-     ellipse1.setRect(QRectF((X1[2] * view.width() / 65535), ((view.height() - Y1[2] * view.height() / 65535) - Y2[2] * view.height() / 65535), (2 * X2[2] * view.width() / 65535), (2 * Y2[2] * view.height() / 65535)))
-     ellipse1.setPen(PyQt5.QtGui.QPen(PyQt5.QtGui.QColor(rouge[2], vert[2], bleu[2], master[2]), thick[2], Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+     ellipse1.setRect(QRectF((valeur16b(37, data) * view.width() / 65535), ((view.height() - (valeur16b(39, data)) * view.height() / 65535) - (valeur16b(43, data)) * view.height() / 65535), (2 * (valeur16b(41, data)) * view.width() / 65535), (2 * (valeur16b(43, data)) * view.height() / 65535)))
+     ellipse1.setPen(PyQt5.QtGui.QPen(PyQt5.QtGui.QColor(data[31], data[32], data[33], data[30]), data[34], Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
      ellipse1.setTransformOriginPoint(ellipse1.boundingRect().center())
-     ellipse1.setRotation(360*R[2]/65535)
+     ellipse1.setRotation(360*(valeur16b(35, data))/65535)
 
-     ellipse2.setRect(QRectF((X1[3] * view.width() / 65535), ((view.height() - Y1[3] * view.height() / 65535) - Y2[3] * view.height() / 65535), (X2[3] * view.width() / 65535), (Y2[3] * view.height() / 65535)))
-     ellipse2.setPen(PyQt5.QtGui.QPen(PyQt5.QtGui.QColor(rouge[3], vert[3], bleu[3], master[3]), thick[3], Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+     ellipse2.setRect(QRectF((valeur16b(52, data) * view.width() / 65535), ((view.height() - (valeur16b(54, data)) * view.height() / 65535) - (valeur16b(58, data)) * view.height() / 65535), ((valeur16b(56, data)) * view.width() / 65535), ((valeur16b(58, data)) * view.height() / 65535)))
+     ellipse2.setPen(PyQt5.QtGui.QPen(PyQt5.QtGui.QColor(data[46], data[47], data[48], data[45]), data[49], Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
      ellipse2.setTransformOriginPoint(ellipse2.boundingRect().center())
-     ellipse2.setRotation(360*R[3]/65535)
+     ellipse2.setRotation(360*(valeur16b(50, data))/65535)
 
+     if data[75] != gobo:
+          picture_sacn(data[75])
+          gobo = data[75]
      pix.setTransformationMode(Qt.SmoothTransformation)
-     pix_pan = X1[4] * view.width()
-     pix_tilt = Y1[4] * view.height()
-     pix_width = X2[4] *  view.width()/ 127
-     pix_height = Y2[4] * view.height() / 127
-     pix.setOpacity(master[4] / 255)
+     pix_pan = (valeur16b(67, data)) * view.width()
+     pix_tilt = (valeur16b(69, data)) * view.height()
+     pix_width = (valeur16b(71, data)) *  view.width()/ 1700
+     pix_height = (valeur16b(73, data)) * view.height() / 1000
+     pix.setOpacity(data[60] / 255)
      trans = PyQt5.QtGui.QTransform()
      trans.setMatrix(pix_width / 65535, 0, 0, 0, pix_height / 65535, 0, pix_pan / 65535, pix_tilt / 65535, 1)
      pix.setTransform(trans)
      pix.setTransformOriginPoint(pix.boundingRect().center())
-     pix.setRotation(360*R[4]/65535)
-
-
-def on_levels_changed(dmx_data_in) :
-     for  cha in range (0, 76, 1) :
-          dmx_data[cha] = dmx_data_in[cha]
-     process_dmx_data(dmx_data)
-
+     pix.setRotation(360*(valeur16b(65, data))/65535)
 
 def picture_sacn(level):
      global pix, view
@@ -189,48 +174,6 @@ def picture_sacn(level):
                return
           pict = pict.scaled(view.width(), view.height())
      pix.setPixmap(pict)
-
-
-def process_dmx_data(data) :
-     for premier_circuit in range(0,61,15):
-          shape_number = premier_circuit // 15
-          #logging.debug(f"ch : {ch}")
-          for i in range(5):
-               current_value = data[premier_circuit + i]
-               if (current_value >= 0) & (current_value <= 255) & (shape_number <= 4) & (shape_number >= 0):
-                   if i == 0:
-                       #logging.debug(f"ch : {ch} value : {current_value}")
-                       master[shape_number] = current_value
-                   if shape_number < 4:
-                        if i == 1:
-                             rouge[shape_number] = current_value
-                        elif i == 2:
-                             vert[shape_number] = current_value
-                        elif i == 3:
-                             bleu[shape_number] = current_value
-                        elif i == 4:
-                             thick[shape_number] = current_value
-
-          for i in range(5, 15, 2):
-               combined_value = (data[premier_circuit + i] << 8) | data[premier_circuit + i + 1]
-               if i == 5:
-                    R[shape_number] = combined_value
-               elif i == 7:
-                    X1[shape_number] = combined_value
-                    #logging.debug(f"ch : {ch} value : {combined_value}")
-               elif i == 9:
-                    Y1[shape_number] = combined_value
-               elif i == 11:
-                    X2[shape_number] = combined_value
-               elif i == 13:
-                    Y2[shape_number] = combined_value
-
-     level = data[75]
-     if level >= 0:
-          picture_sacn(level)
-     line_update()
-     #logging.debug("out")
-
 
 
 app.exec_()
