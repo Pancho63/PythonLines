@@ -44,12 +44,12 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
-    "Python.Lines.executor": "Debug",
+    "Python.Lines.executor": "Run",
     "Python._pydev_execfile.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "master",
-    "settings.editor.selected.configurable": "settings.sync"
+    "settings.editor.selected.configurable": "proofread"
   }
 }]]></component>
   <component name="SharedIndexes">
@@ -100,7 +100,15 @@
       <option name="project" value="LOCAL" />
       <updated>1737303737680</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="deploying">
+      <option name="closed" value="true" />
+      <created>1737316750609</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1737316750609</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
