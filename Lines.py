@@ -1,11 +1,13 @@
 import logging
 import PyQt6.QtGui
+from PyQt6.QtGui import QShortcut
 from PyQt6.QtCore import Qt, QRectF, QThread,pyqtSignal
 from PyQt6.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsRectItem, QGraphicsEllipseItem, QGraphicsPixmapItem
-import sacn
+#import sacn
 logging.basicConfig(
     level=logging.DEBUG,  # Set logging level to debug
     format='%(asctime)s - %(levelname)s - %(message)s',)  # Include timestamp for clarity
+import ola.ClientWrapper
 
 gobo = 0
 app = QApplication([])
@@ -47,18 +49,30 @@ scene.addItem(ellipse1)
 scene.addItem(ellipse2)
 scene.addItem(pix)
 
-class SACNReceiverThread(QThread):
-    dmx_data_received = pyqtSignal(list)  # Ensure signal is defined correctly
+# Add Ctrl+Q shortcut to quit the application
+quit_sc = QShortcut(PyQt6.QtGui.QKeySequence('Ctrl+Q'), view)
+quit_sc.activated.connect(app.quit)
+
+class OLAReceiverThread(QThread):
+    dmx_data_received = pyqtSignal(list)  # Signal to send DMX data to the GUI
+
+    def __init__(self, universe):
+        super().__init__()
+        self.universe = universe
+        self.wrapper = ola.ClientWrapper.ClientWrapper()
+        self.client = self.wrapper.Client()
 
     def run(self):
-        receiver = sacn.sACNreceiver()
-        receiver.start()
+        self.client.RegisterUniverse(
+            self.universe, self.client.REGISTER, self.dmx_callback
+        )
+        print(f"Listening for DMX data on universe {self.universe}...")
+        self.wrapper.Run()  # Blocks while listening
 
-        @receiver.listen_on('universe', universe=7)
-        def callback(packet):  # packet type: sacn.DataPacket
-            self.dmx_data_received.emit(list(packet.dmxData))  # Ensure data is a list
+    def dmx_callback(self, data):  # Only accept the 'data' argument
+        self.dmx_data_received.emit(list(data))  # Emit DMX data as a list
 
-receiver_thread = SACNReceiverThread()
+receiver_thread = OLAReceiverThread(universe=7)
 receiver_thread.dmx_data_received.connect(lambda data: line_update(data))
 receiver_thread.start()
 
