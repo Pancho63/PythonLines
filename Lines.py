@@ -1,13 +1,15 @@
 import logging
+import queue
 import PyQt6.QtGui
 from PyQt6.QtGui import QShortcut
-from PyQt6.QtCore import Qt, QRectF, QThread,pyqtSignal
-from PyQt6.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsRectItem, QGraphicsEllipseItem, QGraphicsPixmapItem
-#import sacn
+from PyQt6.QtCore import Qt, QRectF, QThread, pyqtSignal
+from PyQt6.QtWidgets import (QApplication, QGraphicsView, QGraphicsScene,
+                             QGraphicsRectItem, QGraphicsEllipseItem, QGraphicsPixmapItem)
+import ola.ClientWrapper
+
 logging.basicConfig(
     level=logging.DEBUG,  # Set logging level to debug
     format='%(asctime)s - %(levelname)s - %(message)s',)  # Include timestamp for clarity
-import ola.ClientWrapper
 
 gobo = 0
 app = QApplication([])
@@ -16,15 +18,15 @@ scene = QGraphicsScene()
 view.setScene(scene)
 view.showFullScreen()
 
-# fetch screen definition
+# Fetch screen definition
 screen = app.primaryScreen()
 screenGeometry = screen.geometry()
 view.setSceneRect(QRectF(screenGeometry))  # Define scene size
 logging.debug(f"Definition : {screenGeometry.width()}x{screenGeometry.height()}")
-# y adapter la vue
+# Adapt the view
 view.setFixedWidth(screenGeometry.width())
 view.setFixedHeight(screenGeometry.height())
-# black background et better quality
+# Black background and better quality
 view.setBackgroundBrush(PyQt6.QtGui.QBrush(Qt.GlobalColor.black, Qt.BrushStyle.SolidPattern))
 view.setAutoFillBackground(True)
 view.setRenderHints(PyQt6.QtGui.QPainter.RenderHint.Antialiasing)
@@ -33,7 +35,7 @@ view.setRenderHints(PyQt6.QtGui.QPainter.RenderHint.SmoothPixmapTransform)
 view.setFrameShape(PyQt6.QtWidgets.QFrame.Shape.NoFrame)
 # Hide the cursor
 view.setCursor(Qt.CursorShape.BlankCursor)
-# no scrollBars
+# No scrollbars
 view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
@@ -53,14 +55,26 @@ scene.addItem(pix)
 quit_sc = QShortcut(PyQt6.QtGui.QKeySequence('Ctrl+Q'), view)
 quit_sc.activated.connect(app.quit)
 
-class OLAReceiverThread(QThread):
-    dmx_data_received = pyqtSignal(list)  # Signal to send DMX data to the GUI
+# Precompute ratios
+width_ratio = view.width() / 65535
+height_ratio = view.height() / 65535
 
+# Preload and cache images
+image_cache = {}
+for i in range(1, 11):
+    image = PyQt6.QtGui.QPixmap(f"imageLine/{i}.png")
+    if not image.isNull():
+        image_cache[i] = image.scaled(view.width(), view.height())
+    else:
+        logging.debug(f"Failed to load image: imageLine/{i}.png")
+
+class OLAReceiverThread(QThread):
     def __init__(self, universe):
         super().__init__()
         self.universe = universe
         self.wrapper = ola.ClientWrapper.ClientWrapper()
         self.client = self.wrapper.Client()
+        self.data_queue = queue.Queue()  # Thread-safe queue for DMX data
 
     def run(self):
         self.client.RegisterUniverse(
@@ -69,124 +83,122 @@ class OLAReceiverThread(QThread):
         print(f"Listening for DMX data on universe {self.universe}...")
         self.wrapper.Run()  # Blocks while listening
 
-    def dmx_callback(self, data):  # Only accept the 'data' argument
-        self.dmx_data_received.emit(list(data))  # Emit DMX data as a list
+    def dmx_callback(self, data):
+        # Put the DMX data into the queue
+        self.data_queue.put(list(data))
 
+    def get_data(self):
+        # Retrieve DMX data from the queue (called from the main thread)
+        if not self.data_queue.empty():
+            return self.data_queue.get()
+        return None
+
+# Create the OLAReceiverThread
 receiver_thread = OLAReceiverThread(universe=7)
-receiver_thread.dmx_data_received.connect(lambda data: line_update(data))
 receiver_thread.start()
 
-
 def valeur16b(value, data):
-     return (data[value] << 8) | data[value+ 1]
-
+    return (data[value] << 8) | data[value + 1]
 
 def line_update(data):
-     global scene, view, pix, ellipse1, ellipse2, rect1, rect2, gobo
+    global view, pix, ellipse1, ellipse2, rect1, rect2, gobo, width_ratio, height_ratio
 
-     rect1.setRect(QRectF((valeur16b(7, data) * view.width() / 65535), (valeur16b(9, data) * view.height() / 65535), (valeur16b(11, data) * view.width() / 65535), (valeur16b(13, data) * view.height() / 65535)))
-     rect1.setPen(PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[1], data[2], data[3], data[0]), data[4], Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-     rect1.setTransformOriginPoint(rect1.boundingRect().center())
-     rect1.setRotation(360*(valeur16b(5, data))/65535)
+    # Update rect1
+    new_rect1 = QRectF((valeur16b(7, data) * width_ratio),
+                       (valeur16b(9, data) * height_ratio),
+                       (valeur16b(11, data) * width_ratio),
+                       (valeur16b(13, data) * height_ratio))
+    if rect1.rect() != new_rect1:
+        rect1.setRect(new_rect1)
+    new_pen1 = PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[1], data[2], data[3], data[0]), data[4],
+                                Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    if rect1.pen() != new_pen1:
+        rect1.setPen(new_pen1)
+    rect1.setTransformOriginPoint(rect1.boundingRect().center())
+    rect1.setRotation(360 * (valeur16b(5, data)) / 65535)
 
-     rect2.setRect(QRectF((valeur16b(22, data) * view.width() / 65535), ((view.height() - (valeur16b(24, data)) * view.height() / 65535) - (valeur16b(28, data)) * view.height() / 65535), ((valeur16b(26, data)) * view.width() / 65535), ((valeur16b(28, data)) * view.height() / 65535)))
-     rect2.setPen(PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[16], data[17], data[18], data[15]), data[19], Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-     rect2.setTransformOriginPoint(rect2.boundingRect().center())
-     rect2.setRotation(360*(valeur16b(20, data))/65535)
+    # Update rect2
+    new_rect2 = QRectF((valeur16b(22, data) * width_ratio),
+                       ((view.height() - (valeur16b(24, data)) * height_ratio) - (valeur16b(28, data)) * height_ratio),
+                       ((valeur16b(26, data)) * width_ratio),
+                       ((valeur16b(28, data)) * height_ratio))
+    if rect2.rect() != new_rect2:
+        rect2.setRect(new_rect2)
+    new_pen2 = PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[16], data[17], data[18], data[15]), data[19],
+                                Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    if rect2.pen() != new_pen2:
+        rect2.setPen(new_pen2)
+    rect2.setTransformOriginPoint(rect2.boundingRect().center())
+    rect2.setRotation(360 * (valeur16b(20, data)) / 65535)
 
-     ellipse1.setRect(QRectF((valeur16b(37, data) * view.width() / 65535), ((view.height() - (valeur16b(39, data)) * view.height() / 65535) - (valeur16b(43, data)) * view.height() / 65535), (2 * (valeur16b(41, data)) * view.width() / 65535), (2 * (valeur16b(43, data)) * view.height() / 65535)))
-     ellipse1.setPen(PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[31], data[32], data[33], data[30]), data[34], Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-     ellipse1.setTransformOriginPoint(ellipse1.boundingRect().center())
-     ellipse1.setRotation(360*(valeur16b(35, data))/65535)
+    # Update ellipse1
+    new_ellipse1 = QRectF((valeur16b(37, data) * width_ratio),
+                          ((view.height() - (valeur16b(39, data)) * height_ratio) - (valeur16b(43, data)) * height_ratio),
+                          (2 * (valeur16b(41, data)) * width_ratio),
+                          (2 * (valeur16b(43, data)) * height_ratio))
+    if ellipse1.rect() != new_ellipse1:
+        ellipse1.setRect(new_ellipse1)
+    new_pen3 = PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[31], data[32], data[33], data[30]), data[34],
+                                Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    if ellipse1.pen() != new_pen3:
+        ellipse1.setPen(new_pen3)
+    ellipse1.setTransformOriginPoint(ellipse1.boundingRect().center())
+    ellipse1.setRotation(360 * (valeur16b(35, data)) / 65535)
 
-     ellipse2.setRect(QRectF((valeur16b(52, data) * view.width() / 65535), ((view.height() - (valeur16b(54, data)) * view.height() / 65535) - (valeur16b(58, data)) * view.height() / 65535), ((valeur16b(56, data)) * view.width() / 65535), ((valeur16b(58, data)) * view.height() / 65535)))
-     ellipse2.setPen(PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[46], data[47], data[48], data[45]), data[49], Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-     ellipse2.setTransformOriginPoint(ellipse2.boundingRect().center())
-     ellipse2.setRotation(360*(valeur16b(50, data))/65535)
+    # Update ellipse2
+    new_ellipse2 = QRectF((valeur16b(52, data) * width_ratio),
+                          ((view.height() - (valeur16b(54, data)) * height_ratio) - (valeur16b(58, data)) * height_ratio),
+                          ((valeur16b(56, data)) * width_ratio),
+                          ((valeur16b(58, data)) * height_ratio))
+    if ellipse2.rect() != new_ellipse2:
+        ellipse2.setRect(new_ellipse2)
+    new_pen4 = PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[46], data[47], data[48], data[45]), data[49],
+                                Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    if ellipse2.pen() != new_pen4:
+        ellipse2.setPen(new_pen4)
+    ellipse2.setTransformOriginPoint(ellipse2.boundingRect().center())
+    ellipse2.setRotation(360 * (valeur16b(50, data)) / 65535)
 
-     if data[75] != gobo:
-          picture_sacn(data[75])
-          gobo = data[75]
-     pix.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
-     pix_pan = (valeur16b(67, data)) * view.width()
-     pix_tilt = (valeur16b(69, data)) * view.height()
-     pix_width = (valeur16b(71, data)) *  view.width()/ 1700
-     pix_height = (valeur16b(73, data)) * view.height() / 1000
-     pix.setOpacity(data[60] / 255)
-     trans = PyQt6.QtGui.QTransform()
-     trans.setMatrix(pix_width / 65535, 0, 0, 0, pix_height / 65535, 0, pix_pan / 65535, pix_tilt / 65535, 1)
-     pix.setTransform(trans)
-     pix.setTransformOriginPoint(pix.boundingRect().center())
-     pix.setRotation(360*(valeur16b(65, data))/65535)
+    # Update pixmap
+    if data[75] != gobo:
+        picture_sacn(data[75])
+        gobo = data[75]
+
+    pix.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+    pix_pan = (valeur16b(67, data)) * view.width()
+    pix_tilt = (valeur16b(69, data)) * view.height()
+    pix_width = (valeur16b(71, data)) * view.width() / 1700
+    pix_height = (valeur16b(73, data)) * view.height() / 1000
+    pix.setOpacity(data[60] / 255)
+    trans = PyQt6.QtGui.QTransform()
+    trans.setMatrix(pix_width / 65535, 0, 0, 0, pix_height / 65535, 0, pix_pan / 65535, pix_tilt / 65535, 1)
+    pix.setTransform(trans)
+    pix.setTransformOriginPoint(pix.boundingRect().center())
+    pix.setRotation(360 * (valeur16b(65, data)) / 65535)
 
 def picture_sacn(level):
-     global pix, view
-     #if 0 <= level < 23:
-     pict = PyQt6.QtGui.QPixmap()
+    global pix
+    # Map the level to the correct image index
+    if level < 23:
+        # No picture for levels 0 to 22
+        pix.setPixmap(PyQt6.QtGui.QPixmap())  # Set an empty pixmap
+    else:
+        # Calculate the image index for levels 23 to 255
+        image_index = ((level - 23) // 23) + 1  # Map to range 1-10
+        image_index = min(image_index, 10)  # Ensure it doesn't exceed 10
 
-     if 23 <= level < 46:
-          pict = PyQt6.QtGui.QPixmap( "imageLine/1.png")
-          if pict.isNull():
-            return
-          pict = pict.scaled(view.width(), view.height())
+        if image_index in image_cache:
+            pix.setPixmap(image_cache[image_index])
 
+# Function to process DMX data from the queue
+def process_dmx_data():
+    data = receiver_thread.get_data()
+    if data is not None:
+        line_update(data)
+    # Schedule the function to run again
+    PyQt6.QtCore.QTimer.singleShot(10, process_dmx_data)
 
-     elif 46 <= level < 69:
-          pict = PyQt6.QtGui.QPixmap( "imageLine/2.png")
-          if pict.isNull():
-            return
-          pict = pict.scaled(view.width(), view.height())
-
-
-     elif 69 <= level < 92:
-          pict = PyQt6.QtGui.QPixmap("./imageLine/3.png")
-          if pict.isNull():
-               logging.debug("null")
-               return
-          pict = pict.scaled(view.width(), view.height())
-
-     elif 92 <= level < 115:
-          pict = PyQt6.QtGui.QPixmap("imageLine/4.png")
-          if pict.isNull():
-            return
-          pict = pict.scaled(view.width(), view.height())
-
-     elif 115 <= level < 138:
-          pict = PyQt6.QtGui.QPixmap("imageLine/5.png")
-          if pict.isNull():
-               return
-          pict = pict.scaled(view.width(), view.height())
-
-     elif 138 <= level < 161:
-          pict = PyQt6.QtGui.QPixmap("imageLine/6.png")
-          if pict.isNull():
-               return
-          pict = pict.scaled(view.width(), view.height())
-
-     elif 161 <= level < 184:
-          pict = PyQt6.QtGui.QPixmap("imageLine/7.png")
-          if pict.isNull():
-               return
-          pict = pict.scaled(view.width(), view.height())
-
-     elif 184 <= level < 207:
-          pict = PyQt6.QtGui.QPixmap("imageLine/8.png")
-          if pict.isNull():
-               return
-          pict = pict.scaled(view.width(), view.height())
-
-     elif 207 <= level < 230:
-          pict = PyQt6.QtGui.QPixmap("imageLine/9.png")
-          if pict.isNull():
-               return
-          pict = pict.scaled(view.width(), view.height())
-
-     elif 230 <= level < 256:
-          pict = PyQt6.QtGui.QPixmap("imageLine/10.png")
-          if pict.isNull():
-               return
-          pict = pict.scaled(view.width(), view.height())
-     pix.setPixmap(pict)
-
+# Start processing DMX data
+process_dmx_data()
 
 app.exec()
