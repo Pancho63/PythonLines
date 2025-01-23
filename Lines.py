@@ -1,5 +1,4 @@
 import logging
-import queue
 import PyQt6.QtGui
 from PyQt6.QtGui import QShortcut
 from PyQt6.QtCore import Qt, QRectF, QThread
@@ -12,6 +11,8 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',)  # Include timestamp for clarity
 
 gobo = 0
+# Define the global variable
+data = []# Initialize it with None or an appropriate default value
 app = QApplication([])
 view = QGraphicsView()
 scene = QGraphicsScene()
@@ -69,7 +70,7 @@ for i in range(1, 11):
         logging.debug(f"Failed to load image: imageLine/{i}.png")
 
 class OLAReceiverThread(QThread):
-    dmx_data_received = PyQt6.QtCore.pyqtSignal(list)
+    data_received = PyQt6.QtCore.pyqtSignal(list)
     def __init__(self, universe):
         super().__init__()
         self.universe = universe
@@ -78,6 +79,7 @@ class OLAReceiverThread(QThread):
         self.running = False
 
     def run(self):
+        global data  # Declare that we're modifying the global variable
         self.wrapper = ola.ClientWrapper.ClientWrapper()
         self.client = self.wrapper.Client()
         self.running = True
@@ -87,8 +89,12 @@ class OLAReceiverThread(QThread):
         while self.running:
             self.wrapper.Run()
 
-    def dmx_callback(self, data):
-        self.dmx_data_received.emit(list(data))
+    def dmx_callback(self, received_data):
+        global data  # Declare the global variable to modify it
+        data = list(received_data)  # Update the global variable with new DMX data
+        #print(f"DMX Data Received: {data}")
+        # Emit the data (if needed by other parts of your program)
+        self.data_received.emit(data)
 
     def stop(self):
         self.running = False
@@ -97,17 +103,18 @@ class OLAReceiverThread(QThread):
 
 
 
-def valeur16b(value, data):
+def valeur16b(value):
+    global data
     return (data[value] << 8) | data[value + 1]
 
-def line_update(data):
+def line_update():
     global view, pix, ellipse1, ellipse2, rect1, rect2, gobo, width_ratio, height_ratio
 
     # Update rect1
-    new_rect1 = QRectF((valeur16b(7, data) * width_ratio),
-                       (valeur16b(9, data) * height_ratio),
-                       (valeur16b(11, data) * width_ratio),
-                       (valeur16b(13, data) * height_ratio))
+    new_rect1 = QRectF((valeur16b(7) * width_ratio),
+                       (valeur16b(9) * height_ratio),
+                       (valeur16b(11) * width_ratio),
+                       (valeur16b(13) * height_ratio))
     if rect1.rect() != new_rect1:
         rect1.setRect(new_rect1)
     new_pen1 = PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[1], data[2], data[3], data[0]), data[4],
@@ -115,13 +122,13 @@ def line_update(data):
     if rect1.pen() != new_pen1:
         rect1.setPen(new_pen1)
     rect1.setTransformOriginPoint(rect1.boundingRect().center())
-    rect1.setRotation(360 * (valeur16b(5, data)) / 65535)
+    rect1.setRotation(360 * (valeur16b(5)) / 65535)
 
     # Update rect2
-    new_rect2 = QRectF((valeur16b(22, data) * width_ratio),
-                       ((view.height() - (valeur16b(24, data)) * height_ratio) - (valeur16b(28, data)) * height_ratio),
-                       ((valeur16b(26, data)) * width_ratio),
-                       ((valeur16b(28, data)) * height_ratio))
+    new_rect2 = QRectF((valeur16b(22) * width_ratio),
+                       ((view.height() - (valeur16b(24)) * height_ratio) - (valeur16b(28)) * height_ratio),
+                       ((valeur16b(26)) * width_ratio),
+                       ((valeur16b(28)) * height_ratio))
     if rect2.rect() != new_rect2:
         rect2.setRect(new_rect2)
     new_pen2 = PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[16], data[17], data[18], data[15]), data[19],
@@ -129,13 +136,13 @@ def line_update(data):
     if rect2.pen() != new_pen2:
         rect2.setPen(new_pen2)
     rect2.setTransformOriginPoint(rect2.boundingRect().center())
-    rect2.setRotation(360 * (valeur16b(20, data)) / 65535)
+    rect2.setRotation(360 * (valeur16b(20)) / 65535)
 
     # Update ellipse1
-    new_ellipse1 = QRectF((valeur16b(37, data) * width_ratio),
-                          ((view.height() - (valeur16b(39, data)) * height_ratio) - (valeur16b(43, data)) * height_ratio),
-                          (2 * (valeur16b(41, data)) * width_ratio),
-                          (2 * (valeur16b(43, data)) * height_ratio))
+    new_ellipse1 = QRectF((valeur16b(37) * width_ratio),
+                          ((view.height() - (valeur16b(39)) * height_ratio) - (valeur16b(43)) * height_ratio),
+                          (2 * (valeur16b(41)) * width_ratio),
+                          (2 * (valeur16b(43)) * height_ratio))
     if ellipse1.rect() != new_ellipse1:
         ellipse1.setRect(new_ellipse1)
     new_pen3 = PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[31], data[32], data[33], data[30]), data[34],
@@ -143,13 +150,13 @@ def line_update(data):
     if ellipse1.pen() != new_pen3:
         ellipse1.setPen(new_pen3)
     ellipse1.setTransformOriginPoint(ellipse1.boundingRect().center())
-    ellipse1.setRotation(360 * (valeur16b(35, data)) / 65535)
+    ellipse1.setRotation(360 * (valeur16b(35)) / 65535)
 
     # Update ellipse2
-    new_ellipse2 = QRectF((valeur16b(52, data) * width_ratio),
-                          ((view.height() - (valeur16b(54, data)) * height_ratio) - (valeur16b(58, data)) * height_ratio),
-                          ((valeur16b(56, data)) * width_ratio),
-                          ((valeur16b(58, data)) * height_ratio))
+    new_ellipse2 = QRectF((valeur16b(52) * width_ratio),
+                          ((view.height() - (valeur16b(54)) * height_ratio) - (valeur16b(58)) * height_ratio),
+                          ((valeur16b(56)) * width_ratio),
+                          ((valeur16b(58)) * height_ratio))
     if ellipse2.rect() != new_ellipse2:
         ellipse2.setRect(new_ellipse2)
     new_pen4 = PyQt6.QtGui.QPen(PyQt6.QtGui.QColor(data[46], data[47], data[48], data[45]), data[49],
@@ -157,7 +164,7 @@ def line_update(data):
     if ellipse2.pen() != new_pen4:
         ellipse2.setPen(new_pen4)
     ellipse2.setTransformOriginPoint(ellipse2.boundingRect().center())
-    ellipse2.setRotation(360 * (valeur16b(50, data)) / 65535)
+    ellipse2.setRotation(360 * (valeur16b(50)) / 65535)
 
     # Update pixmap
     if data[75] != gobo:
@@ -165,16 +172,16 @@ def line_update(data):
         gobo = data[75]
 
     pix.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
-    pix_pan = (valeur16b(67, data)) * view.width()
-    pix_tilt = (valeur16b(69, data)) * view.height()
-    pix_width = (valeur16b(71, data)) * view.width() / 1700
-    pix_height = (valeur16b(73, data)) * view.height() / 1000
+    pix_pan = (valeur16b(67)) * view.width()
+    pix_tilt = (valeur16b(69)) * view.height()
+    pix_width = (valeur16b(71)) * view.width() / 1700
+    pix_height = (valeur16b(73)) * view.height() / 1000
     pix.setOpacity(data[60] / 255)
     trans = PyQt6.QtGui.QTransform()
     trans.setMatrix(pix_width / 65535, 0, 0, 0, pix_height / 65535, 0, pix_pan / 65535, pix_tilt / 65535, 1)
     pix.setTransform(trans)
     pix.setTransformOriginPoint(pix.boundingRect().center())
-    pix.setRotation(360 * (valeur16b(65, data)) / 65535)
+    pix.setRotation(360 * (valeur16b(65)) / 65535)
 
 def picture_sacn(level):
     global pix
@@ -192,7 +199,7 @@ def picture_sacn(level):
 
 # Create the OLAReceiverThread
 receiver_thread = OLAReceiverThread(universe=7)
-receiver_thread.dmx_data_received.connect(line_update)
+receiver_thread.data_received.connect(line_update)
 receiver_thread.start()
 
 app.exec()
