@@ -2,7 +2,7 @@ import logging
 import queue
 import PyQt6.QtGui
 from PyQt6.QtGui import QShortcut
-from PyQt6.QtCore import Qt, QRectF, QThread, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, QRectF, QThread
 from PyQt6.QtWidgets import (QApplication, QGraphicsView, QGraphicsScene,
                              QGraphicsRectItem, QGraphicsEllipseItem, QGraphicsPixmapItem)
 import ola.ClientWrapper
@@ -69,26 +69,33 @@ for i in range(1, 11):
         logging.debug(f"Failed to load image: imageLine/{i}.png")
 
 class OLAReceiverThread(QThread):
-    dmx_signal = pyqtSignal(list)  # Signal to communicate with the main thread
-
+    dmx_data_received = PyQt6.QtCore.pyqtSignal(list)
     def __init__(self, universe):
         super().__init__()
         self.universe = universe
-        self.wrapper = ola.ClientWrapper.ClientWrapper()
-        self.client = self.wrapper.Client()
+        self.wrapper = None
+        self.client = None
+        self.running = False
 
     def run(self):
+        self.wrapper = ola.ClientWrapper.ClientWrapper()
+        self.client = self.wrapper.Client()
+        self.running = True
         self.client.RegisterUniverse(
             self.universe, self.client.REGISTER, self.dmx_callback
         )
-        print(f"Listening for DMX data on universe {self.universe}...")
+        while self.running:
+            self.wrapper.Run()
 
     def dmx_callback(self, data):
-        self.dmx_signal.emit(list(data))  # Emit the data to the main thread
+        self.dmx_data_received.emit(list(data))
 
-# Create the OLAReceiverThread
-receiver_thread = OLAReceiverThread(universe=7)
-receiver_thread.start()
+    def stop(self):
+        self.running = False
+        if self.wrapper:
+            self.wrapper.Stop()
+
+
 
 def valeur16b(value, data):
     return (data[value] << 8) | data[value + 1]
@@ -183,14 +190,9 @@ def picture_sacn(level):
         if image_index in image_cache:
             pix.setPixmap(image_cache[image_index])
 
-# Function to process DMX data from the queue
-def process_dmx_data(data):
-    line_update(data)
-
-# Connect the DMX signal to the processing function
-receiver_thread.dmx_signal.connect(process_dmx_data)
-
-# Start the OLA wrapper in the main thread
-receiver_thread.wrapper.Run()
+# Create the OLAReceiverThread
+receiver_thread = OLAReceiverThread(universe=7)
+receiver_thread.dmx_data_received.connect(line_update)
+receiver_thread.start()
 
 app.exec()
