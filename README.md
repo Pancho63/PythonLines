@@ -1,7 +1,7 @@
-a small fullscreen app which draw 2 rectangles and 2 elipses (and a pixmap) in RGB via sACN.  
-It responde to univers 7, channels :  
+a small fullscreen app which draw 2 rectangles and 2 elipses (and a pixmap) in RGB and move and transform them via sACN.  
+It responde to univers 7.  
 First rectangle :  
--1 : Master  
+-channel 1 : Master  
 -2 : R  
 -3 : G  
 -4 : B  
